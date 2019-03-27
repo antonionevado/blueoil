@@ -41,7 +41,8 @@ LIB_SRC := $(wildcard $(INPUTS_SRC_DIR)/*.cpp) \
     $(SRC_DIR)/network_c_interface.cpp \
     $(SRC_DIR)/network.cpp \
     $(SRC_DIR)/pack_input_to_qwords.cpp \
-    $(SRC_DIR)/time_measurement.cpp
+    $(SRC_DIR)/time_measurement.cpp \
+    $(SRC_DIR)/write_to_file.cpp
 
 SRC := $(LIB_SRC) $(wildcard $(DLK_TEST_SRC_DIR)/*.cpp) mains/main.cpp
 SRC := $(filter-out ./src/network_c_interface.cpp, $(SRC))

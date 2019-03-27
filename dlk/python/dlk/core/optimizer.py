@@ -20,7 +20,7 @@ import numpy as np
 from core.graph import Graph
 from core.graph_pattern_matching import get_nodes_in_branch, sort_graph
 from core.operators import Constant, Operator, Conv
-from core.data_types import Uint32, QUANTIZED_NOT_PACKED
+from core.data_types import Uint32, Int32, QUANTIZED_NOT_PACKED, QUANTIZED_PACKED
 from typing import cast, List, Any
 from collections import defaultdict
 from modules.packer import Packer
@@ -492,12 +492,12 @@ def pass_quantize_convolutions(graph: Graph) -> None:
 
         # change the output data type of the convolution if thresholds are available
         if conv_node.has_thresholds:
-            conv_node.dtype = QUANTIZED_NOT_PACKED()
+            conv_node.dtype = QUANTIZED_PACKED()
 
         # change the output data type of the quantizers
         conv_node.quantizer.dtype = Uint32()
         for qtz in conv_node.a_quantizer:
-            qtz.dtype = QUANTIZED_NOT_PACKED()
+            qtz.dtype = Int32()
 
 
 def pass_propagate_datatypes(graph) -> None:

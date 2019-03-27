@@ -35,7 +35,7 @@ namespace dlk
 namespace impl
 {
 
-void QuantizedConv2DKn2Row(QUANTIZED_NOT_PACKED input[], const T_UINT kernel[],
+void QuantizedConv2DKn2Row(QUANTIZED_PACKED input[], const T_UINT kernel[],
                            const binary_convolution_parameters &p)
 {
   using namespace dlk;
@@ -94,8 +94,9 @@ void QuantizedConv2DKn2Row(QUANTIZED_NOT_PACKED input[], const T_UINT kernel[],
 #endif
 
   Measurement::Start("Packing input for kn2row");
-  const T_UINT in_size_orig = in_h * in_w * in_c;
-  pack_input_to_qwords(input, p.device_input_buf, in_size_orig, 2);
+  const T_UINT in_size_orig = in_h * in_w * (in_c / 16);
+  for(int i = 0; i < in_size_orig; i++)
+    p.device_input_buf[i] = input[i];
   Measurement::Stop();
 
   if (out_c_less_than_num_pe)
