@@ -69,10 +69,10 @@ void QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
 #if defined(USE_NEON) && !defined(RUN_ON_FPGA)
       dlk::impl::QuantizedConv2DTiling(input, kernel, p);
 #else
-      dlk::impl::QuantizedConv2DKn2Row(input, kernel, p);
+      dlk::impl::TCAConv2d(input, kernel, p);
 #endif
     } else {
-      dlk::impl::QuantizedConv2DKn2Row(input, kernel, p);
+      dlk::impl::TCAConv2d(input, kernel, p);
     }
   } else {
     ;//dlk::impl::QuantizedConv2DIm2Col(input, kernel, p);
@@ -96,11 +96,34 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
                        p.normal_conv_params.output_width *
                        p.normal_conv_params.output_channels;
 
+  static T_UINT counter_input = 0;
+  write_to_file("out/tca_qconv_single_sf_input", counter_input++, input, 50);
+
+  std::cout << "Kernel (single sf) data: " << counter_input-- << std::endl;
+  for(int i = 0; i < 10; i++)
+    std::cout << "  k: " << kernel[i] << std::endl;
+
+  static T_UINT counter = 0;
+  write_to_file("out/tca_qconv_single_sf_output", counter++, p.device_output_buf, out_elems);
+
+
   // temporary: (2^n - 1) * (max - min)
   const T_FLOAT post_qtz_factor = 2.0f / 3.0f;
+  int b = 32;
+  auto& ncp(p.normal_conv_params);
 
-  for (unsigned i = 0; i < out_elems; ++i) {
-    output[i] = (scaling_factor * post_qtz_factor) * p.device_output_buf[i];
+  if(ncp.output_channels > b) {
+      int out_index = 0;
+      for (int h = 0; h < ncp.output_height; h++)
+      for (int w = 0; w < ncp.output_width; w++)
+      for (int s = 0; s < ncp.output_channels / b; s++)
+      for (int d = 0; d < b; d++)
+        output[out_index++] = (scaling_factor * post_qtz_factor) * p.device_output_buf[h * (ncp.output_channels * ncp.input_width) + w * ncp.output_channels + s * (ncp.input_height * ncp.input_width * b) + d];
+  }
+  else {
+      for (unsigned i = 0; i < out_elems; ++i) {
+        output[i] = (scaling_factor * post_qtz_factor) * p.device_output_buf[i];
+      }
   }
 
   Measurement::Stop();
@@ -111,26 +134,55 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
                           binary_convolution_parameters p) {
   Measurement::Start("QuantizedConv2D");
 
+  static T_UINT counter_input = 0;
+  write_to_file("out/tca_qconv_vector_sf_input", counter_input++, input, 50);
+
+  std::cout << "Kernel (vector sf) data: " << counter_input-- << std::endl;
+  for(int i = 0; i < 10; i++)
+    std::cout << "  k: " << kernel[i] << std::endl;
+
+
   QuantizedConv2D(input, kernel, p);
 
   Measurement::Stop();
 
   Measurement::Start("QuantizedConv2D_ApplyScalingFactor");
 
-  unsigned out_elems =
-      p.normal_conv_params.output_height * p.normal_conv_params.output_width;
+  unsigned out_elems = p.normal_conv_params.output_height * p.normal_conv_params.output_width;
+
+  static T_UINT counter = 0;
+  write_to_file("out/tca_qconv_vector_sf_output", counter++, p.device_output_buf, out_elems);
+
+
   unsigned out_channels = p.normal_conv_params.output_channels;
 
   // temporary: (2^n - 1) * (max - min)
   T_FLOAT post_qtz_factor = 2.0 / 3.0;
 
-  for (unsigned i = 0; i < out_elems; ++i) {
-    for (unsigned c = 0; c < out_channels; c++) {
-      unsigned idx = i * out_channels + c;
-      BIN_CONV_OUTPUT out = p.device_output_buf[idx];
-      output[idx] =
-          (scaling_factor[c] * post_qtz_factor) * static_cast<T_FLOAT>(out);
-    }
+  int b = 32;
+  auto& ncp(p.normal_conv_params);
+  if(ncp.output_channels > b) {
+      int out_index = 0;
+      for (int h = 0; h < ncp.output_height; h++)
+      for (int w = 0; w < ncp.output_width; w++)
+      for (int s = 0; s < ncp.output_channels / b; s++)
+      for (int d = 0; d < b; d++)
+        output[out_index++] = static_cast<float>(p.device_output_buf[h * (ncp.output_channels * ncp.input_width) + w * ncp.output_channels + s * (ncp.input_height * ncp.input_width * b) + d]);
+
+      for (unsigned i = 0; i < out_elems; ++i) {
+        for (unsigned c = 0; c < out_channels; c++) {
+          unsigned idx = i * out_channels + c;
+          output[idx] = (scaling_factor[c] * post_qtz_factor) * output[idx];
+        }
+      }
+  }
+  else {
+      for (unsigned i = 0; i < out_elems; ++i) {
+        for (unsigned c = 0; c < out_channels; c++) {
+          unsigned idx = i * out_channels + c;
+          output[idx] = (scaling_factor[c] * post_qtz_factor) * p.device_output_buf[idx];
+        }
+      }
   }
 
   Measurement::Stop();

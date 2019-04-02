@@ -463,13 +463,14 @@ def pass_pack_weights(graph: Graph) -> None:
                                 idx = g * (kw * kh * kd * b) + p * b + h * (kw * kd) + w * kd + o * (kw * kh * kd) + d
                                 tca_output[out_index] = padded_data[idx]
                                 out_index += 1
-        tca_output = tca_output.reshape((oc // b, kd // b, kh, kw, b, b))
-        print(tca_output.shape)
-        # TODO: when ready, use tca_output in the next line and pass the number of kernels for compatibility with the
-        # TODO: old packer code
+        # tca_output = tca_output.reshape((oc // b, kd // b, kh, kw, b, b))
+        # print(tca_output.shape)
 
         op_data = weight_quantizer.binarizer(weight_quantizer.data)
         data = packer.run(op_data.astype(np.float32), weight_quantizer.dimension)
+
+        tca_binarized_data = weight_quantizer.binarizer(tca_output)
+        tca_packed_data = packer.run(tca_binarized_data.astype(np.float32), weight_quantizer.dimension)
 
         # Create the new constant with the quantized weights
         oh = conv_node.height
@@ -484,7 +485,7 @@ def pass_pack_weights(graph: Graph) -> None:
             data,
             packed=True,
             actual_shape=weight_quantizer.shape,
-            transposed_data=_transpose_kernels(data, oh, ow, od, kh, kw, kd)
+            transposed_data=tca_packed_data.flatten().tolist()
         )
 
         # get nodes to be removed after being disconnected

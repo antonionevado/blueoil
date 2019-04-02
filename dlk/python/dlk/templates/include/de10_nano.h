@@ -387,8 +387,10 @@ Parameters calcParameters(uint32_t inputHeight, uint32_t inputWidth, uint32_t in
   constexpr uint32_t maxBurst = 32;
   constexpr uint32_t b = 32;
 
-  uint32_t pad = 1;
-  uint32_t dep = 2;
+  assert((kernelHeight == 3 && kernelWidth == 3) || (kernelHeight == 1 && kernelWidth == 1));
+
+  uint32_t pad = (kernelHeight == 1) ? 0 : 1;
+  uint32_t dep = kernelHeight - 1;
 
   auto outputHeight = inputHeight + 2 * pad - dep;
   auto outputWidth = inputWidth + 2 * pad - dep;
@@ -401,21 +403,19 @@ Parameters calcParameters(uint32_t inputHeight, uint32_t inputWidth, uint32_t in
   auto hCount = divRoundUp(outputHeight, outputTileHeight);
   auto wCount = divRoundUp(outputWidth, outputTileWidth);
 
-  assert(hCount >= 3 && wCount >= 3 && "tile generator assumes that at least 3 tiles exist in each direction");
-
   // ADMA Parameters
   Parameters p;
   p.admaInputAddress = inputAddress;
   p.admaInputHCount = hCount;
   p.admaInputWCount = wCount;
 
-  p.admaInputCCount = inputChannels / b;
+  p.admaInputCCount = divRoundUp(inputChannels, b);
 
-  p.admaTopTileH = inputTileHeight - pad;
+  p.admaTopTileH = (hCount == 1) ? inputHeight : (inputTileHeight - pad);
   p.admaMiddleTileH = inputTileHeight;
   p.admaBottomTileH = inputHeight + pad - (hCount - 1)  * (inputTileHeight - dep);
 
-  p.admaLeftTileW = inputTileWidth - pad;
+  p.admaLeftTileW = (wCount == 1) ? inputWidth : (inputTileWidth - pad);
   p.admaMiddleTileW = inputTileWidth;
   p.admaRightTileW = inputWidth + pad - (wCount - 1) * (inputTileWidth - dep);
 
@@ -434,13 +434,13 @@ Parameters calcParameters(uint32_t inputHeight, uint32_t inputWidth, uint32_t in
   p.admaTopBottomLeftPad = (p.admaLeftTileW + pad) * pad;
   p.admaTopBottomMiddlePad = p.admaMiddleTileW * pad;
   p.admaTopBottomRightPad = (p.admaRightTileW + pad) * pad;
-  p.admaSidePad = pad;
+  p.admaSidePad = (wCount == 1) ? (2 * pad) : pad;
 
   // WDMA Parameters
   p.wdmaStartAddress = kernelAddress;
   p.wdmaOutputHCount = hCount;
   p.wdmaOutputWCount = wCount;
-  p.wdmaKernelBlockCount = outputChannels / b * inputChannels / b * kernelHeight * kernelWidth;
+  p.wdmaKernelBlockCount = divRoundUp(outputChannels, b) * divRoundUp(inputChannels, b) * kernelHeight * kernelWidth;
 
   // FDMA Parameters
   constexpr uint32_t dataWidth = b * 16;
@@ -456,7 +456,7 @@ Parameters calcParameters(uint32_t inputHeight, uint32_t inputWidth, uint32_t in
 
   p.fdmaOutputHCount = hCount;
   p.fdmaOutputWCount = wCount;
-  p.fdmaOutputCCount = outputChannels / b;
+  p.fdmaOutputCCount = divRoundUp(outputChannels, b);
 
   p.fdmaRegularTileH = outputTileHeight;
   p.fdmaLastTileH = outputHeight - (hCount - 1)  * outputTileHeight;
@@ -475,9 +475,15 @@ Parameters calcParameters(uint32_t inputHeight, uint32_t inputWidth, uint32_t in
   p.a2fKernelVCount = kernelHeight;
   p.a2fKernelHCount = kernelWidth;
 
-  // TODO: 3x3 stride one assumed here
-  p.a2fTileStep = 1u;
-  p.a2fTileGap = 3u;
+  if (kernelHeight == 1) {
+    p.a2fTileStep = 1u;
+    p.a2fTileGap = 1u;
+  }
+  else {
+    // TODO: 3x3 stride one assumed here
+    p.a2fTileStep = 1u;
+    p.a2fTileGap = 3u;
+  }
 
   p.a2fOutputHCount = hCount;
   p.a2fOutputWCount = wCount;
