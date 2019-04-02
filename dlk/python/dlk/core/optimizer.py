@@ -418,6 +418,7 @@ def pass_pack_weights(graph: Graph) -> None:
     weight_bitwidth = 1
     packer = Packer(weight_bitwidth, word_size)
     to_be_removed = []
+    b = 32
 
     for m in exec_list:
         conv_node = m
@@ -433,6 +434,40 @@ def pass_pack_weights(graph: Graph) -> None:
 
         # Quantize the weights
         weight_quantizer.run_forward()
+
+        def pad_to_multiple_of_b(tensor, axis, b):
+            shape = list(tensor.shape)
+            pad = (((shape[axis] + b - 1) // b) * b) - shape[axis]
+            shape[axis] = pad
+            return np.zeros(shape) if pad else None
+
+        padded_data = np.copy(weight_quantizer.data)
+
+        for axis in [0, 3]:
+            pad_tensor = pad_to_multiple_of_b(padded_data, axis, b)
+            if pad_tensor is not None:
+                padded_data = np.append(padded_data, pad_tensor, axis=axis)
+
+        tca_output = np.copy(padded_data)
+        oc, kh, kw, kd = padded_data.shape[:]
+        padded_data = padded_data.flatten()
+        tca_output = tca_output.flatten()
+
+        out_index = 0
+        for g in range(oc // b):
+            for p in range(kd // b):
+                for h in range(kh):
+                    for w in range(kw):
+                        for o in range(b):
+                            for d in range(b):
+                                idx = g * (kw * kh * kd * b) + p * b + h * (kw * kd) + w * kd + o * (kw * kh * kd) + d
+                                tca_output[out_index] = padded_data[idx]
+                                out_index += 1
+        tca_output = tca_output.reshape((oc // b, kd // b, kh, kw, b, b))
+        print(tca_output.shape)
+        # TODO: when ready, use tca_output in the next line and pass the number of kernels for compatibility with the
+        # TODO: old packer code
+
         op_data = weight_quantizer.binarizer(weight_quantizer.data)
         data = packer.run(op_data.astype(np.float32), weight_quantizer.dimension)
 

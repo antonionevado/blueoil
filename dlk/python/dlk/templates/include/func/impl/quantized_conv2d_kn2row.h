@@ -27,6 +27,8 @@ void QuantizedConv2DKn2Row(QUANTIZED_PACKED input[],
                                   const T_UINT kernel[],
                                   const binary_convolution_parameters &p);
 
+void TCAConv2d(QUANTIZED_PACKED input[], const T_UINT kernel[], const binary_convolution_parameters &p);
+
 } // namespace impl
 
 } // namespace dlk

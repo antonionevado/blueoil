@@ -141,11 +141,31 @@ void func_QuantizedConv2DWithThreshold(QUANTIZED_PACKED input[],
                                        QUANTIZED_PACKED output[],
                                        T_FLOAT scaling_factor,
                                        binary_convolution_parameters p) {
-  QuantizedConv2D(input, kernel, p);
 
-  unsigned out_elems = p.normal_conv_params.output_height *
-                       p.normal_conv_params.output_width *
-                       p.normal_conv_params.output_channels;
+  auto& ncp(p.normal_conv_params);
+
+  unsigned in_elems = ncp.input_height * ncp.input_width * ncp.kernel_depth;
+  unsigned out_elems = ncp.output_height * ncp.output_width * ncp.output_channels;
+
+  // TODO: uncomment when ready
+  QUANTIZED_PACKED* input_tca_layout = new QUANTIZED_PACKED[in_elems / 32 * 2];
+  QUANTIZED_PACKED* output_tca_layout = new QUANTIZED_PACKED[out_elems / 32 * 2];
+
+  int b = 32;
+  int packed_input_depth = (ncp.kernel_depth / 32) * 2;
+  int packed_b = (b / 32) * 2;
+
+  if(ncp.kernel_depth > 32) {
+      int out_index = 0;
+      for (int s = 0; s < packed_input_depth / packed_b; s++)
+      for (int h = 0; h < ncp.input_height; h++)
+      for (int w = 0; w < ncp.input_width; w++)
+      for (int d = 0; d < packed_b; d++)
+        input_tca_layout[out_index++] = input[s * packed_b + h * (ncp.input_width * packed_input_depth) + w * (packed_input_depth) + d];
+  }
+
+  // TODO: replace input with 'input_tca_layout' when ready
+  QuantizedConv2D(input, kernel, p);
 
   static T_UINT counter = 0;
   write_to_file("out/first_qconv_output_quantized_not_packed0", counter++, p.device_output_buf, out_elems);
@@ -156,8 +176,24 @@ void func_QuantizedConv2DWithThreshold(QUANTIZED_PACKED input[],
     not_packed_ones[i] = p.device_output_buf[i];
   }
 
-  pack_input(not_packed_ones, p.normal_conv_params.output_height, p.normal_conv_params.output_width, p.normal_conv_params.output_channels, 2, output);
+  pack_input(not_packed_ones, ncp.output_height, ncp.output_width, ncp.output_channels, 2, output);
+
+  // TODO: use output_tca_layout when ready
+  int packed_output_depth = (ncp.output_channels / 32) * 2;
+  if(ncp.output_channels > 32) {
+      int out_index = 0;
+      for (int h = 0; h < ncp.output_height; h++)
+      for (int w = 0; w < ncp.output_width; w++)
+      for (int s = 0; s < packed_output_depth / packed_b; s++)
+      for (int d = 0; d < packed_b; d++)
+        output_tca_layout[out_index++] = output[h * (packed_output_depth * ncp.input_width) + w * packed_output_depth + s * (ncp.input_height * ncp.input_width * packed_b) + d];
+  }
+
   delete [] not_packed_ones;
+
+  // TODO: uncomment this when ready
+  delete [] input_tca_layout;
+  delete [] output_tca_layout;
 }
 
 void func_QuantizedConv2DWithThreshold(QUANTIZED_PACKED input[],
