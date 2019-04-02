@@ -417,7 +417,7 @@ Parameters calcParameters(uint32_t inputHeight, uint32_t inputWidth, uint32_t in
 
   p.admaLeftTileW = (wCount == 1) ? inputWidth : (inputTileWidth - pad);
   p.admaMiddleTileW = inputTileWidth;
-  p.admaRightTileW = inputWidth + pad - (wCount - 1) * (inputTileWidth - dep);
+  p.admaRightTileW = (wCount == 1) ? inputWidth : inputWidth + pad - (wCount - 1) * (inputTileWidth - dep);
 
   p.admaLeftRowToRowDistance = inputWidth - p.admaLeftTileW + ((p.admaLeftTileW % maxBurst == 0) ? maxBurst : p.admaLeftTileW % maxBurst);
   p.admaMiddleRowToRowDistance = inputWidth - p.admaMiddleTileW + ((p.admaMiddleTileW % maxBurst == 0) ? maxBurst : p.admaMiddleTileW % maxBurst);
