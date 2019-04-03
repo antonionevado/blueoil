@@ -485,7 +485,7 @@ def pass_pack_weights(graph: Graph) -> None:
             data,
             packed=True,
             actual_shape=weight_quantizer.shape,
-            transposed_data=[(~k) & ((0x1 << 32) - 1) for k in tca_packed_data.flatten()]
+            transposed_data=tca_packed_data.flatten().tolist()  # [(~k) & ((0x1 << 32) - 1) for k in tca_packed_data.flatten()]
         )
 
         # get nodes to be removed after being disconnected
