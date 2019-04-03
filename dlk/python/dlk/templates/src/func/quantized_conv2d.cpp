@@ -84,6 +84,12 @@ void QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
 void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
                           T_FLOAT output[], T_FLOAT scaling_factor,
                           binary_convolution_parameters p) {
+
+  unsigned in_elems_wh = p.normal_conv_params.input_height * p.normal_conv_params.input_width;
+  unsigned in_elems = (p.normal_conv_params.kernel_depth > 32 ? (in_elems_wh * p.normal_conv_params.kernel_depth) / 16 : in_elems_wh * 2);
+  static T_UINT in_counter = 0;
+  write_to_file("out/qconv_input_quantized_packed_ol1_", in_counter++, input, in_elems);
+
   Measurement::Start("QuantizedConv2D");
 
   QuantizedConv2D(input, kernel, p);
@@ -96,15 +102,8 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
                        p.normal_conv_params.output_width *
                        p.normal_conv_params.output_channels;
 
-  static T_UINT counter_input = 0;
-  write_to_file("out/tca_qconv_single_sf_input", counter_input++, input, 50);
-
-  std::cout << "Kernel (single sf) data: " << counter_input-- << std::endl;
-  for(int i = 0; i < 10; i++)
-    std::cout << "  k: " << kernel[i] << std::endl;
-
-  static T_UINT counter = 0;
-  write_to_file("out/tca_qconv_single_sf_output", counter++, p.device_output_buf, out_elems);
+  static T_UINT out_counter = 0;
+  write_to_file("out/qconv_output_16bit_ol1_", out_counter++, p.device_output_buf, out_elems);
 
 
   // temporary: (2^n - 1) * (max - min)
@@ -134,12 +133,10 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
                           binary_convolution_parameters p) {
   Measurement::Start("QuantizedConv2D");
 
-  static T_UINT counter_input = 0;
-  write_to_file("out/tca_qconv_vector_sf_input", counter_input++, input, 50);
-
-  std::cout << "Kernel (vector sf) data: " << counter_input-- << std::endl;
-  for(int i = 0; i < 10; i++)
-    std::cout << "  k: " << kernel[i] << std::endl;
+  unsigned in_elems_wh = p.normal_conv_params.input_height * p.normal_conv_params.input_width;
+  unsigned in_elems = (p.normal_conv_params.kernel_depth > 32 ? (in_elems_wh * p.normal_conv_params.kernel_depth) / 16 : in_elems_wh * 2);
+  static T_UINT in_counter = 0;
+  write_to_file("out/qconv_input_quantized_packed_ol2_", in_counter++, input, in_elems);
 
 
   QuantizedConv2D(input, kernel, p);
@@ -149,12 +146,10 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
   Measurement::Start("QuantizedConv2D_ApplyScalingFactor");
 
   unsigned out_elems = p.normal_conv_params.output_height * p.normal_conv_params.output_width;
-
-  static T_UINT counter = 0;
-  write_to_file("out/tca_qconv_vector_sf_output", counter++, p.device_output_buf, out_elems);
-
-
   unsigned out_channels = p.normal_conv_params.output_channels;
+
+  static T_UINT out_counter = 0;
+  write_to_file("out/qconv_output_16bit_ol2_", out_counter++, p.device_output_buf, out_elems * p.normal_conv_params.output_channels);
 
   // temporary: (2^n - 1) * (max - min)
   T_FLOAT post_qtz_factor = 2.0 / 3.0;

@@ -173,8 +173,8 @@ void func_QTZ_linear_mid_tread_half(
     th.join();
   }
 
-  static T_UINT counter = 0;
-  write_to_file("out/qconv_input_quantized_not_packed", counter++, output_not_packed, in_height * in_width * in_depth);
+  //static T_UINT counter = 0;
+  //write_to_file("out/qconv_input_quantized_not_packed", counter++, output_not_packed, in_height * in_width * in_depth);
 
   pack_input(output_not_packed, in_height, in_width, in_depth, nbit, output);
   delete [] output_not_packed;
