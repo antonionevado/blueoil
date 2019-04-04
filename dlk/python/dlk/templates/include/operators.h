@@ -59,6 +59,7 @@ struct binary_convolution_parameters {
 
   DMA_Buffer *dma_input_buffer;
   DMA_Buffer *dma_output_buffer;
+  const char* debug_name;
 };
 
 #endif

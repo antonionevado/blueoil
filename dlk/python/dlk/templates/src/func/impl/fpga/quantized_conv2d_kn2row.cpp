@@ -179,29 +179,24 @@ void TCAConv2d(QUANTIZED_PACKED input[], const T_UINT kernel[], const binary_con
 
   using namespace dlk;
 
-  std::cout << "Run TCA" << std::endl;
-
   convolution_parameters cp = p.normal_conv_params;
-  const T_UINT out_c = cp.output_channels;
+  const T_UINT b = 32;
+  const T_UINT out_c = ((cp.output_channels + b - 1) / b) * b;
 
   const T_UINT num_qkernel_per_qword = (NBIT_QDYPE / MAX_NBIT_KERNEL);
 
   const T_UINT k_h = cp.kernel_height;
   const T_UINT k_w = cp.kernel_width;
   const T_UINT k_c = cp.kernel_depth;
-  const T_UINT k_c_by_word = (k_c + (num_qkernel_per_qword - 1)) / num_qkernel_per_qword;
 
   const T_UINT in_h = cp.input_height;
   const T_UINT in_w = cp.input_width;
-  const T_UINT in_c = k_c;
-  const T_UINT in_c_by_word = k_c_by_word;
 
   const T_UINT out_h = cp.output_height;
   const T_UINT out_w = cp.output_width;
 
   Measurement::Start("Processing input for TCA");
 
-  int b = 32;
   int packed_input_depth = (cp.kernel_depth / 32) * 2;
   int packed_b = (b / 32) * 2;
 
@@ -220,7 +215,6 @@ void TCAConv2d(QUANTIZED_PACKED input[], const T_UINT kernel[], const binary_con
 
   Measurement::Stop();
 
-
     T_UINT input_byte_size =
         (cp.input_height * cp.input_width * cp.kernel_depth * in_nbits) /
         byte_nbits;
@@ -235,7 +229,7 @@ void TCAConv2d(QUANTIZED_PACKED input[], const T_UINT kernel[], const binary_con
 
     Measurement::Start("Conv2D TCA");
     de10_nano::RunTCA(p.device_input_phys_addr, p.device_output_phys_addr, kernel, p.thresholds, in_w, in_h,
-      in_c_by_word, MAX_NBIT_QINPUT, out_w, out_h, out_c, k_w, k_h, cp.padding, cp.stride_along_height);
+      k_c, MAX_NBIT_QINPUT, out_w, out_h, out_c, k_w, k_h, cp.padding, cp.stride_along_height);
     Measurement::Stop();
 
     p.dma_output_buffer->sync_size(output_byte_size);

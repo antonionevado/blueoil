@@ -102,6 +102,7 @@ typedef T_INT Quantized_t;
 void write_to_file(const char *filename, int id, volatile int32_t* data, int size);
 void write_to_file(const char *filename, int id, volatile BIN_CONV_OUTPUT* data, int size);
 void write_to_file(const char *filename, int id, QUANTIZED_NOT_PACKED* data, int size);
+void write_to_file(const char *filename, int id, float* data, int size);
 
 // TCA
 

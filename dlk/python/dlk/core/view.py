@@ -161,6 +161,7 @@ class View(object):
                     binConv2D_struct.thresholds = {threshold};
                     binConv2D_struct.n_bit = {nbit_aqtz};
                     binConv2D_struct.max_value = {max_value};
+                    binConv2D_struct.debug_name = "{op.name}";
 
                     {conv_func}({inputs_string}, {op.name}, scaling_factors::{op.name}, binConv2D_struct);
                     """

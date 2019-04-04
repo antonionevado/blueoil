@@ -26,78 +26,6 @@ from collections import defaultdict
 from modules.packer import Packer
 
 
-def _transpose_kernels(kernel_data: np.ndarray,
-                       oh: int,
-                       ow: int,
-                       od: int,
-                       kh: int,
-                       kw: int,
-                       kd: int) -> List[int]:
-    """Calculates and prepares the transposed kernel data in advance.
-
-    Parameters
-    ----------
-    kernel_data : np.ndarray
-        The input data.
-    oh : int
-        output height
-    ow : int
-        output width
-    od : int
-        output depth
-    kh : int
-        kernel height
-    kw : int
-        kernel width
-    kd : int
-        kernel depth
-    """
-    NUM_PE = 16
-    NBIT_QDYPE = 32
-    MAX_NBIT_QINPUT = 2
-    MAX_NBIT_KERNEL = 1
-    num_qinput_per_qword = int(NBIT_QDYPE / MAX_NBIT_QINPUT)
-    num_qkernel_per_qword = int(NBIT_QDYPE / MAX_NBIT_KERNEL)
-    k_c_by_word = int((kd + (num_qkernel_per_qword - 1)) / num_qkernel_per_qword)
-    k_n_aligned_with_num_pe = int(((od + (NUM_PE - 1)) / NUM_PE) * NUM_PE)
-    if od < NUM_PE:
-        k_size = k_n_aligned_with_num_pe * kh * kw * k_c_by_word
-    else:
-        k_size = od * kh * kw * k_c_by_word
-
-    flatten_value = []
-    for elem in kernel_data:
-        flatten_value.extend(elem)
-    while len(flatten_value) != k_size:
-        flatten_value.extend("0")
-
-    copy_value = [0] * k_size
-    for i in range(od * kh * kw * k_c_by_word):
-        copy_value[i] = flatten_value[i]
-
-    transposed_values = [0] * k_size
-    if (od < NUM_PE):
-        kn_out = int(k_n_aligned_with_num_pe / NUM_PE)
-    else:
-        kn_out = int(od / NUM_PE)
-    idx_src = 0
-
-    for no in range(kn_out):
-        for ni in range(NUM_PE):
-            for h in range(kh):
-                for w in range(kw):
-                    for c in range(k_c_by_word):
-                        idx_dst = no * (kh * kw * k_c_by_word * NUM_PE)
-                        idx_dst += h * (kw * k_c_by_word * NUM_PE)
-                        idx_dst += w * (k_c_by_word * NUM_PE)
-                        idx_dst += c * (NUM_PE)
-                        idx_dst += ni
-                        transposed_values[idx_dst] = copy_value[idx_src]
-                        idx_src += 1
-
-    return transposed_values
-
-
 def pass_remove_identities(graph: Graph) -> None:
     """Removes those nodes of a Graph that satisfies the condition node.op_type() == Identity.
 
@@ -463,8 +391,6 @@ def pass_pack_weights(graph: Graph) -> None:
                                 idx = g * (kw * kh * kd * b) + p * b + h * (kw * kd) + w * kd + o * (kw * kh * kd) + d
                                 tca_output[out_index] = padded_data[idx]
                                 out_index += 1
-        # tca_output = tca_output.reshape((oc // b, kd // b, kh, kw, b, b))
-        # print(tca_output.shape)
 
         op_data = weight_quantizer.binarizer(weight_quantizer.data)
         data = packer.run(op_data.astype(np.float32), weight_quantizer.dimension)
@@ -473,19 +399,13 @@ def pass_pack_weights(graph: Graph) -> None:
         tca_packed_data = packer.run(tca_binarized_data.astype(np.float32), weight_quantizer.dimension)
 
         # Create the new constant with the quantized weights
-        oh = conv_node.height
-        ow = conv_node.width
-        od = conv_node.channel
-        kh = conv_node.kernel_height
-        kw = conv_node.kernel_width
-        kd = conv_node.input_ops['X'].channel
         quantized_constant = Constant(
             weight_quantizer.name + '_new',
             Uint32(),
             data,
             packed=True,
             actual_shape=weight_quantizer.shape,
-            transposed_data=tca_packed_data.flatten().tolist()  # [(~k) & ((0x1 << 32) - 1) for k in tca_packed_data.flatten()]
+            transposed_data=[(~k) & ((0x1 << 32) - 1) for k in tca_packed_data.flatten()]
         )
 
         # get nodes to be removed after being disconnected
