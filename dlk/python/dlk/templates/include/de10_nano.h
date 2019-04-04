@@ -496,18 +496,21 @@ Parameters calcParameters(uint32_t inputHeight, uint32_t inputWidth, uint32_t in
   return p;
 }
 
-void RunTCA(unsigned long input_addr, unsigned long output_addr, const T_UINT k_data_packed[],
+void RunTCA(unsigned long input_addr, unsigned long output_addr, unsigned long kernel_addr,
   BIN_CONV_OUTPUT th_data[], unsigned in_w, unsigned in_h, unsigned in_c, unsigned nbits_in_data,
   unsigned out_w, unsigned out_h, unsigned out_c, unsigned k_w, unsigned k_h, unsigned pad, unsigned stride) {
 
   const unsigned k_size = (k_h * k_w * in_c * out_c) / 32;
-  MappedMem k_data_mem(KERNEL_ADDR, k_size, sizeof(T_UINT));
-  k_data_mem.Write(k_data_packed, k_size);
+  // MappedMem k_data_mem(KERNEL_ADDR, k_size, sizeof(T_UINT));
+  // k_data_mem.Write(k_data_packed, k_size);
 
-    volatile auto* csr = reinterpret_cast<uint32_t*>(mapPhysicalMemory(HPS_TO_FPGA_LW_BASE, 0xFF));
+  static volatile uint32_t* csr = nullptr;
+  if (csr == nullptr) {
+    csr = reinterpret_cast<uint32_t*>(mapPhysicalMemory(HPS_TO_FPGA_LW_BASE, 0xFF));
+  }
     auto tileWidth = 32u;
     auto tileHeight = 32u;
-    auto p = calcParameters(in_h, in_w, in_c, tileWidth, tileHeight, out_c, k_h, k_w, input_addr, KERNEL_ADDR, output_addr);
+    auto p = calcParameters(in_h, in_w, in_c, tileWidth, tileHeight, out_c, k_h, k_w, input_addr, kernel_addr, output_addr);
 
     csr[Csr::admaInputAddress] = p.admaInputAddress;
     csr[Csr::admaInputHCount] = p.admaInputHCount;
@@ -559,12 +562,12 @@ void RunTCA(unsigned long input_addr, unsigned long output_addr, const T_UINT k_
     csr[Csr::a2fRegularTileW] = p.a2fRegularTileW;
     csr[Csr::a2fLastTileW] = p.a2fLastTileW;
 
-    std::cout << "Status " << csr[Csr::statusRegister] << std::endl;
+    // std::cout << "Status " << csr[Csr::statusRegister] << std::endl;
     csr[Csr::start] = 1;
 
-    std::cout << "Status " << csr[Csr::statusRegister] << std::endl;
+    // std::cout << "Status " << csr[Csr::statusRegister] << std::endl;
     while (csr[Csr::statusRegister] != 15) {
-        std::cout << "Status " << csr[Csr::statusRegister] << std::endl;
+        // std::cout << "Status " << csr[Csr::statusRegister] << std::endl;
         continue;
     }
 }

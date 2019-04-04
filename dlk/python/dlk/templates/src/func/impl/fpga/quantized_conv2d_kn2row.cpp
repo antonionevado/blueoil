@@ -195,7 +195,7 @@ void TCAConv2d(QUANTIZED_PACKED input[], const T_UINT kernel[], const binary_con
   const T_UINT out_h = cp.output_height;
   const T_UINT out_w = cp.output_width;
 
-  Measurement::Start("Processing input for TCA");
+  Measurement::Start("Change layout for TCA");
 
   int packed_input_depth = (cp.kernel_depth / 32) * 2;
   int packed_b = (b / 32) * 2;
@@ -221,22 +221,20 @@ void TCAConv2d(QUANTIZED_PACKED input[], const T_UINT kernel[], const binary_con
 
     T_UINT output_byte_size = out_h * out_w * out_c * sizeof(BIN_CONV_OUTPUT);
 
+    Measurement::Start("Sync UDMABuf Input");
     p.dma_input_buffer->sync_size(input_byte_size);
-    p.dma_output_buffer->sync_size(output_byte_size);
-
     p.dma_input_buffer->sync_for_device();
-    p.dma_output_buffer->sync_for_device();
+    Measurement::Stop();
 
     Measurement::Start("Conv2D TCA");
-    de10_nano::RunTCA(p.device_input_phys_addr, p.device_output_phys_addr, kernel, p.thresholds, in_w, in_h,
+    de10_nano::RunTCA(p.device_input_phys_addr, p.device_output_phys_addr, p.device_kernel_phys_addr, p.thresholds, in_w, in_h,
       k_c, MAX_NBIT_QINPUT, out_w, out_h, out_c, k_w, k_h, cp.padding, cp.stride_along_height);
     Measurement::Stop();
 
+    Measurement::Start("Sync UDMABuf Output");
     p.dma_output_buffer->sync_size(output_byte_size);
-    p.dma_input_buffer->sync_size(input_byte_size);
-
-    p.dma_input_buffer->sync_for_cpu();
     p.dma_output_buffer->sync_for_cpu();
+    Measurement::Stop();
 }
 
 

@@ -22,12 +22,19 @@ limitations under the License.
 int pack_input(QUANTIZED_NOT_PACKED input[], size_t input_height, size_t input_width, size_t input_depth,
   size_t bits_per_input, QUANTIZED_PACKED output[]) {
 
-  Measurement::Start("pack_input_to_qwords");
+  Measurement::Start("pack_input");
   const int bits_per_word = sizeof(QUANTIZED_PACKED) * CHAR_BIT;
   int full_words_in_depth = input_depth / bits_per_word;
   int remainder_bits_in_depth = input_depth % bits_per_word;
   int input_index = 0;
   int current_word = 0;
+
+  auto len = input_height * input_width * input_depth;
+  if (input_depth % 32 == 0) {
+      pack2bits(input, output, (int)len);
+      Measurement::Stop();
+      return 0;
+  }
 
   for (int h = 0; h < input_height; ++h)
       for (int w = 0; w < input_width; ++w) {

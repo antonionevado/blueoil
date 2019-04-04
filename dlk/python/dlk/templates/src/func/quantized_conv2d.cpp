@@ -60,8 +60,8 @@ void QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
   auto size = oc * ih * iw;
   if (p.device_output_buf == nullptr)
     p.device_output_buf = new BIN_CONV_OUTPUT[size]();
-  else
-    std::memset((void *)p.device_output_buf, 0, size * sizeof(BIN_CONV_OUTPUT));
+  // else
+  //   std::memset((void *)p.device_output_buf, 0, size * sizeof(BIN_CONV_OUTPUT));
 
   if ((kh == 3 && kw == 3 && padding == 1) ||
       (kh == 1 && kw == 1 && padding == 0)) {
@@ -88,7 +88,7 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
   unsigned in_elems_wh = p.normal_conv_params.input_height * p.normal_conv_params.input_width;
   unsigned in_elems = (p.normal_conv_params.kernel_depth > 32 ? (in_elems_wh * p.normal_conv_params.kernel_depth) / 16 : in_elems_wh * 2);
   static T_UINT in_counter = 0;
-  write_to_file("out/qconv_input_quantized_packed_ol1_", in_counter++, input, in_elems);
+  // write_to_file("out/qconv_input_quantized_packed_ol1_", in_counter++, input, in_elems);
 
   Measurement::Start("QuantizedConv2D");
 
@@ -103,7 +103,7 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
                        p.normal_conv_params.output_channels;
 
   static T_UINT out_counter = 0;
-  write_to_file("out/qconv_output_16bit_ol1_", out_counter++, p.device_output_buf, out_elems);
+  // write_to_file("out/qconv_output_16bit_ol1_", out_counter++, p.device_output_buf, out_elems);
 
 
   // temporary: (2^n - 1) * (max - min)
@@ -126,12 +126,6 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
       for (int w = 0; w < ncp.output_width; w++)
       for (int d = 0; d < ncp.output_channels; d++)
         output[out_index++] = (scaling_factor * post_qtz_factor) * p.device_output_buf[h * (tca_channels * ncp.input_width) + w * tca_channels + d];
-
-  /*
-      for (unsigned i = 0; i < out_elems; ++i) {
-        output[i] = (scaling_factor * post_qtz_factor) * p.device_output_buf[i];
-      }
-  */
   }
 
   Measurement::Stop();
@@ -145,14 +139,13 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
   unsigned in_elems_wh = p.normal_conv_params.input_height * p.normal_conv_params.input_width;
   unsigned in_elems = (p.normal_conv_params.kernel_depth > 32 ? (in_elems_wh * p.normal_conv_params.kernel_depth) / 16 : in_elems_wh * 2);
   static T_UINT in_counter = 0;
-  write_to_file("out/qconv_input_quantized_packed_ol2_", in_counter++, input, in_elems);
+  // write_to_file("out/qconv_input_quantized_packed_ol2_", in_counter++, input, in_elems);
 
 
   QuantizedConv2D(input, kernel, p);
 
   Measurement::Stop();
 
-  Measurement::Start("QuantizedConv2D_ApplyScalingFactor");
 
   unsigned out_elems = p.normal_conv_params.output_height * p.normal_conv_params.output_width;
   unsigned out_channels = p.normal_conv_params.output_channels;
@@ -162,64 +155,62 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
   int tca_channels = ((ncp.output_channels + b - 1) / b) * b;
 
   static T_UINT out_counter = 0;
-  write_to_file("out/qconv_output_16bit_ol2_", out_counter++, p.device_output_buf, out_elems * tca_channels);
+  // write_to_file("out/qconv_output_16bit_ol2_", out_counter++, p.device_output_buf, out_elems * tca_channels);
 
   // temporary: (2^n - 1) * (max - min)
   T_FLOAT post_qtz_factor = 2.0 / 3.0;
 
-  if(ncp.output_channels > b) {
+  if (ncp.output_channels > b) {
+      Measurement::Start("QuantizedConv2D_ChangeOutputLayout");
+      // XXX: assumes that ncp.output_channels % b == 0
       int out_index = 0;
       for (int h = 0; h < ncp.output_height; h++)
       for (int w = 0; w < ncp.output_width; w++)
       for (int s = 0; s < ncp.output_channels / b; s++)
-      for (int d = 0; d < b; d++)
-        output[out_index++] = static_cast<float>(p.device_output_buf[h * (ncp.output_channels * ncp.input_width) + w * ncp.output_channels + s * (ncp.input_height * ncp.input_width * b) + d]);
+      for (int d = 0; d < b; d++) {
+        auto buf_index = h * (b * ncp.output_width) + w * b + s * (ncp.output_height * ncp.output_width * b) + d;
+        output[out_index++] = static_cast<float>(p.device_output_buf[buf_index]);
+      }
+      Measurement::Stop();
 
-      write_to_file((std::string("out/") + p.debug_name).c_str(), 0, output, out_elems * p.normal_conv_params.output_channels);
+      // write_to_file((std::string("out/") + p.debug_name).c_str(), 0, output, out_elems * p.normal_conv_params.output_channels);
 
+      Measurement::Start("QuantizedConv2D_ApplyScalingFactor");
       for (unsigned i = 0; i < out_elems; ++i) {
         for (unsigned c = 0; c < out_channels; c++) {
           unsigned idx = i * out_channels + c;
           output[idx] = (scaling_factor[c] * post_qtz_factor) * output[idx];
         }
       }
+      Measurement::Stop();
   }
   else {
-      std::cout << "Output channels: " << ncp.output_channels << std::endl;
-      std::cout << "TCA channels: " << tca_channels << std::endl;
-
+      Measurement::Start("QuantizedConv2D_RemoveChannels");
       int tmp_index = 0;
       auto* tmp_output = new T_FLOAT[out_elems * p.normal_conv_params.output_channels];
       for (int h = 0; h < ncp.output_height; h++)
       for (int w = 0; w < ncp.output_width; w++)
-      for (int d = 0; d < ncp.output_channels; d++)
+      for (int d = 0; d < ncp.output_channels; d++) {
         tmp_output[tmp_index++] = p.device_output_buf[h * (tca_channels * ncp.input_width) + w * tca_channels + d];
+      }
 
-      write_to_file((std::string("out/") + p.debug_name).c_str(), 0, tmp_output, out_elems * p.normal_conv_params.output_channels);
+      // write_to_file((std::string("out/") + p.debug_name).c_str(), 0, tmp_output, out_elems * p.normal_conv_params.output_channels);
       delete [] tmp_output;
+      Measurement::Stop();
 
+      Measurement::Start("QuantizedConv2D_ApplyScalingFactor");
       int out_index = 0;
       for (int h = 0; h < ncp.output_height; h++)
       for (int w = 0; w < ncp.output_width; w++)
       for (int d = 0; d < ncp.output_channels; d++)
         output[out_index++] = (scaling_factor[d] * post_qtz_factor) * p.device_output_buf[h * (tca_channels * ncp.input_width) + w * tca_channels + d];
-
-
-  /*
-      for (unsigned i = 0; i < out_elems; ++i) {
-        for (unsigned c = 0; c < out_channels; c++) {
-          unsigned idx = i * out_channels + c;
-          output[idx] = (scaling_factor[c] * post_qtz_factor) * p.device_output_buf[idx];
-        }
-      }
-  */
+      Measurement::Stop();
   }
 
   static T_UINT out_counter_final = 0;
-  //write_to_file("out/qconv_output_16bit_ol2_final_", out_counter_final++, output, out_elems * p.normal_conv_params.output_channels);
+  //// write_to_file("out/qconv_output_16bit_ol2_final_", out_counter_final++, output, out_elems * p.normal_conv_params.output_channels);
 
 
-  Measurement::Stop();
 }
 
 void func_QuantizedConv2DWithThreshold(QUANTIZED_PACKED input[],
@@ -254,7 +245,7 @@ void func_QuantizedConv2DWithThreshold(QUANTIZED_PACKED input[],
   QuantizedConv2D(input, kernel, p);
 
   static T_UINT counter = 0;
-  write_to_file("out/first_qconv_output_quantized_not_packed0", counter++, p.device_output_buf, out_elems);
+  // write_to_file("out/first_qconv_output_quantized_not_packed0", counter++, p.device_output_buf, out_elems);
 
   QUANTIZED_NOT_PACKED* not_packed_ones = new QUANTIZED_NOT_PACKED[out_elems];
 
