@@ -195,7 +195,7 @@ void TCAConv2d(QUANTIZED_PACKED input[], const T_UINT kernel[], const binary_con
   const T_UINT out_h = cp.output_height;
   const T_UINT out_w = cp.output_width;
 
-  Measurement::Start("Change layout for TCA");
+  Measurement::Start("QuantizedConv2D_ChangeInputLayout");
 
   int packed_input_depth = (cp.kernel_depth / 32) * 2;
   int packed_b = (b / 32) * 2;

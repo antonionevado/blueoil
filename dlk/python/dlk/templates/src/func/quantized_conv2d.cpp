@@ -90,6 +90,7 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
   static T_UINT in_counter = 0;
   // write_to_file("out/qconv_input_quantized_packed_ol1_", in_counter++, input, in_elems);
 
+  Measurement::Start("func_QuantizedConv2D");
   Measurement::Start("QuantizedConv2D");
 
   QuantizedConv2D(input, kernel, p);
@@ -129,11 +130,13 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
   }
 
   Measurement::Stop();
+  Measurement::Stop();
 }
 
 void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
                           T_FLOAT output[], T_FLOAT scaling_factor[],
                           binary_convolution_parameters p) {
+  Measurement::Start("func_QuantizedConv2D");
   Measurement::Start("QuantizedConv2D");
 
   unsigned in_elems_wh = p.normal_conv_params.input_height * p.normal_conv_params.input_width;
@@ -207,8 +210,8 @@ void func_QuantizedConv2D(QUANTIZED_PACKED input[], T_UINT kernel[],
       Measurement::Stop();
   }
 
-  static T_UINT out_counter_final = 0;
   //// write_to_file("out/qconv_output_16bit_ol2_final_", out_counter_final++, output, out_elems * p.normal_conv_params.output_channels);
+  Measurement::Stop();
 
 
 }
